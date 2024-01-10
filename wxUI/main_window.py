@@ -1,16 +1,23 @@
 import logging
-from serial import SerialException
 
 import wx
+from pubsub import pub
+from serial import SerialException
 
 from serial_comm.serial_comm import BadSerialResponseException, SerialCommander, SerialManager
 
 logging.basicConfig(level=logging.DEBUG)
 
+ERROR_MESSAGE = "Please check if the correct serial port is selected."
+
 
 class MainWindow(wx.Frame):
     def __init__(self, parent, title: str) -> None:
         wx.Frame.__init__(self, parent, title=title, size=wx.Size(500, 300))
+        pub.subscribe(self.OnBypassMessageReceived, "bypass")
+        pub.subscribe(self.OnFilterOffsetMessageReceived, "filter_offset")
+        pub.subscribe(self.OnResetFilterMessageReceived, "reset_filter")
+        pub.subscribe(self.OnForceTXMessageReceived, "force_tx")
 
         self.serialCommander: SerialCommander = None
 
@@ -64,6 +71,48 @@ class MainWindow(wx.Frame):
             logging.debug(f"Using serial port: {selectedPort}")
             self.statusBar.SetStatusText(f"Using serial port: {selectedPort}")
             # TODO: SP2WIE: start the update timer here?
+
+    def OnBypassMessageReceived(self, message: bool) -> None:
+        try:
+            if message is True:
+                self.serialCommander.set_bypass_on()
+            else:
+                self.serialCommander.set_bypass_off()
+        except SerialException:
+            logging.error(ERROR_MESSAGE)
+            wx.MessageBox(ERROR_MESSAGE, "Error", wx.OK | wx.ICON_ERROR)
+
+    def OnForceTXMessageReceived(self, message: bool) -> None:
+        try:
+            if message is True:
+                self.serialCommander.set_mode_tx_on()
+            else:
+                self.serialCommander.set_mode_tx_off()
+        except SerialException:
+            logging.error(ERROR_MESSAGE)
+            wx.MessageBox(ERROR_MESSAGE, "Error", wx.OK | wx.ICON_ERROR)
+
+    def OnResetFilterMessageReceived(self, message: str) -> None:
+        try:
+            self.serialCommander.reset_filter()
+        except SerialException:
+            logging.error(ERROR_MESSAGE)
+            wx.MessageBox(ERROR_MESSAGE, "Error", wx.OK | wx.ICON_ERROR)
+
+    def OnFilterOffsetMessageReceived(self, message: str) -> None:
+        try:
+            match int(message):
+                case -10:
+                    self.serialCommander.filter_step_down_10()
+                case -1:
+                    self.serialCommander.filter_step_down_1()
+                case 1:
+                    self.serialCommander.filter_step_up_1()
+                case 10:
+                    self.serialCommander.filter_step_up_10()
+        except SerialException:
+            logging.error(ERROR_MESSAGE)
+            wx.MessageBox(ERROR_MESSAGE, "Error", wx.OK | wx.ICON_ERROR)
 
 
 # Don't think we need the indicators for now
@@ -131,19 +180,20 @@ class ControllsPanel(wx.Panel):
         mainSizer.Fit(self)
 
     def OnBypassToggled(self, event) -> None:
-        if event.GetEventObject().GetValue() is True:
-            logging.debug("BYPASS ON")
-        else:
-            logging.debug("BYPASS OFF")
+        value = event.GetEventObject().GetValue()
+        pub.sendMessage("bypass", message=value)
+        logging.debug("BYPASS ON") if value is True else logging.debug("BYPASS OFF")
 
     def OnOffsetButtonClicked(self, event) -> None:
-        logging.debug("FILTER OFFSET %s", event.GetEventObject().GetLabel())
+        label = event.GetEventObject().GetLabel()
+        pub.sendMessage("filter_offset", message=label)
+        logging.debug("FILTER OFFSET %s", label)
 
     def OnResetFilterClicked(self, event) -> None:
+        pub.sendMessage("reset_filter", message="reset")
         logging.debug("%s clicked", event.GetEventObject().GetLabel())
 
     def OnTXModeToggled(self, event) -> None:
-        if event.GetEventObject().GetValue() is True:
-            logging.debug("FORCE TX MODE ON")
-        else:
-            logging.debug("FORCE TX MODE OFF")
+        value = event.GetEventObject().GetValue()
+        pub.sendMessage("force_tx", message=value)
+        logging.debug("FORCE TX MODE ON") if value is True else logging.debug("FORCE TX MODE OFF")
