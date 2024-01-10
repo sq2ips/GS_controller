@@ -88,7 +88,7 @@ class SerialCommander:
     def set_mode_tx_off(self) -> None:
         self.__serial_manager._send_command(Command.MODE_TX_OFF)
 
-    def get_status_request(self) -> str:
+    def get_status(self) -> str:
         self.__serial_manager._send_command(Command.GET_STATUS)
         response = self.__serial_manager._read_from_serial()
         if not response.startswith("STST"):

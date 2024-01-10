@@ -51,7 +51,7 @@ class MainWindow(wx.Frame):
             selectedPort = setPortDialog.GetStringSelection()
             try:
                 self.serialCommander = SerialCommander(selectedPort)
-                self.serialCommander.get_status_request()
+                self.serialCommander.get_status()
             except SerialException as se:
                 logging.error("Could not find or configure the device: %s [%s]", selectedPort, se)
                 wx.MessageBox(
