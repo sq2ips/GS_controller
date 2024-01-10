@@ -21,6 +21,9 @@ class MainWindow(wx.Frame):
 
         self.serialCommander: SerialCommander = None
 
+        self.updateStatusTimer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self.OnTimerTick, self.updateStatusTimer)
+
         # Menu configuration
         # TODO: add About menu
         settingsMenu = wx.Menu()
@@ -64,13 +67,14 @@ class MainWindow(wx.Frame):
                 wx.MessageBox(
                     f"Could not find or configure the device: {selectedPort}", "Error", wx.OK | wx.ICON_ERROR
                 )
-                return
             except BadSerialResponseException as bsre:
                 wx.MessageBox(f"{bsre}", "Error", wx.OK | wx.ICON_ERROR)
-                return
-            logging.debug(f"Using serial port: {selectedPort}")
-            self.statusBar.SetStatusText(f"Using serial port: {selectedPort}")
-            # TODO: SP2WIE: start the update timer here?
+            else:
+                logging.debug(f"Using serial port: {selectedPort}")
+                self.statusBar.SetStatusText(f"Using serial port: {selectedPort}")
+                # since at this point everything should be fine we can start the status update timer
+                if not self.updateStatusTimer.IsRunning():
+                    self.updateStatusTimer.Start(1000)
 
     def OnBypassMessageReceived(self, message: bool) -> None:
         try:
@@ -114,6 +118,28 @@ class MainWindow(wx.Frame):
             logging.error(ERROR_MESSAGE)
             wx.MessageBox(ERROR_MESSAGE, "Error", wx.OK | wx.ICON_ERROR)
 
+    def OnTimerTick(self, event):
+        try:
+            statusMessage = self.serialCommander.get_status()
+            statusMessageList = statusMessage.split(",")
+            # Read bypass status
+            if statusMessageList[3] == "0":
+                self.controllsPanel.bypassToggleButton.SetValue(False)
+            else:
+                self.controllsPanel.bypassToggleButton.SetValue(True)
+            # Read TX Mode status
+            if statusMessageList[5] == "0":
+                self.controllsPanel.txModeToggleButton.SetValue(False)
+            else:
+                self.controllsPanel.txModeToggleButton.SetValue(True)
+        except SerialException as se:
+            logging.error("Could not find or configure the device: %s", se)
+            wx.MessageBox("Could not find or configure the device", "Error", wx.OK | wx.ICON_ERROR)
+            logging.debug("Stopping the update status timer...")
+            self.updateStatusTimer.Stop()
+        except BadSerialResponseException as bsre:
+            wx.MessageBox(f"{bsre}", "Error", wx.OK | wx.ICON_ERROR)
+
 
 # Don't think we need the indicators for now
 # class IndicatorsPanel(wx.Panel):
@@ -143,9 +169,9 @@ class ControllsPanel(wx.Panel):
 
         sizer = wx.StaticBoxSizer(wx.StaticBox(self, -1, "Filter"), wx.VERTICAL)
 
-        bypassToggleButton = wx.ToggleButton(self, label="&BYPASS")
-        self.Bind(wx.EVT_TOGGLEBUTTON, self.OnBypassToggled, bypassToggleButton)
-        sizer.Add(bypassToggleButton, 1, wx.EXPAND | wx.ALL)
+        self.bypassToggleButton = wx.ToggleButton(self, label="BYPASS")
+        self.Bind(wx.EVT_TOGGLEBUTTON, self.OnBypassToggled, self.bypassToggleButton)
+        sizer.Add(self.bypassToggleButton, 1, wx.EXPAND | wx.ALL)
 
         offsetSizer = wx.BoxSizer(wx.HORIZONTAL)
         offsetDown1Button = wx.Button(self, label="-1")
@@ -162,17 +188,17 @@ class ControllsPanel(wx.Panel):
         offsetSizer.Add(offsetUp1Button, 1, wx.EXPAND | wx.ALL)
         sizer.Add(offsetSizer, 1, wx.EXPAND)
 
-        filterResetButton = wx.Button(self, label="&RESET")
+        filterResetButton = wx.Button(self, label="RESET")
         filterResetButton.Bind(wx.EVT_BUTTON, self.OnResetFilterClicked)
         sizer.Add(filterResetButton, 1, wx.ALL | wx.EXPAND)
 
-        txModeToggleButton = wx.ToggleButton(self, label="FORCE TX MODE")
-        self.Bind(wx.EVT_TOGGLEBUTTON, self.OnTXModeToggled, txModeToggleButton)
+        self.txModeToggleButton = wx.ToggleButton(self, label="FORCE TX MODE")
+        self.Bind(wx.EVT_TOGGLEBUTTON, self.OnTXModeToggled, self.txModeToggleButton)
 
         mainSizer.Add(sizer, 1, wx.EXPAND)
         stretchSizer = wx.BoxSizer(wx.VERTICAL)
         stretchSizer.AddStretchSpacer()
-        stretchSizer.Add(txModeToggleButton, 1, wx.EXPAND | wx.TOP | wx.BOTTOM, 5)
+        stretchSizer.Add(self.txModeToggleButton, 1, wx.EXPAND | wx.TOP | wx.BOTTOM, 5)
         mainSizer.Add(stretchSizer, 1, wx.EXPAND)
 
         self.SetSizer(mainSizer)
