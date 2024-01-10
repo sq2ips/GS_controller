@@ -1,8 +1,9 @@
 import logging
+from serial import SerialException
 
 import wx
 
-from serial_comm.serial_comm import SerialManager
+from serial_comm.serial_comm import BadSerialResponseException, SerialCommander, SerialManager
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -10,6 +11,8 @@ logging.basicConfig(level=logging.DEBUG)
 class MainWindow(wx.Frame):
     def __init__(self, parent, title: str) -> None:
         wx.Frame.__init__(self, parent, title=title, size=wx.Size(500, 300))
+
+        self.serialCommander: SerialCommander = None
 
         # Menu configuration
         # TODO: add About menu
@@ -45,8 +48,22 @@ class MainWindow(wx.Frame):
             return
         setPortDialog = wx.SingleChoiceDialog(self, "Please select a serial port", "Select port", serial_ports)
         if setPortDialog.ShowModal() == wx.ID_OK:
-            logging.debug(setPortDialog.GetStringSelection())
-            self.statusBar.SetStatusText("Using serial port: " + setPortDialog.GetStringSelection())
+            selectedPort = setPortDialog.GetStringSelection()
+            try:
+                self.serialCommander = SerialCommander(selectedPort)
+                self.serialCommander.get_status_request()
+            except SerialException as se:
+                logging.error("Could not find or configure the device: %s [%s]", selectedPort, se)
+                wx.MessageBox(
+                    f"Could not find or configure the device: {selectedPort}", "Error", wx.OK | wx.ICON_ERROR
+                )
+                return
+            except BadSerialResponseException as bsre:
+                wx.MessageBox(f"{bsre}", "Error", wx.OK | wx.ICON_ERROR)
+                return
+            logging.debug(f"Using serial port: {selectedPort}")
+            self.statusBar.SetStatusText(f"Using serial port: {selectedPort}")
+            # TODO: SP2WIE: start the update timer here?
 
 
 # Don't think we need the indicators for now

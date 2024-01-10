@@ -18,6 +18,10 @@ class Command(str, Enum):
     GET_STATUS = "ST?"
 
 
+class BadSerialResponseException(Exception):
+    pass
+
+
 class SerialManager:
     def __init__(self, port: str, baudrate: int = 9600) -> None:
         self._port = port
@@ -27,20 +31,20 @@ class SerialManager:
     def _open_serial(self) -> None:
         """Lazy initializer of serial connection."""
         if self._connection is None:
-            self._connection = serial.Serial(self._port, self._baudrate, timeout=5)
+            self._connection = serial.Serial(self._port, self._baudrate, timeout=3)
         if not self._connection.is_open:
             self._connection.open()
 
     def _send_command(self, command: Command, parameter: str = "") -> None:
         self._open_serial()
         command_string = command.value + parameter + "\n"
-        logging.debug("SEND: %s -> %s", command_string, self._port)
+        logging.debug("SEND: %s to %s", command_string[:-1], self._port)
         self._connection.write(command_string.encode("UTF-8"))
         self._connection.flush()
 
     def _read_from_serial(self) -> str:
         message = self._connection.readline().decode("UTF-8").replace("\r\n", "")
-        logging.debug("RECEIVED: %s <- %s", message, self._port)
+        logging.debug("RECEIVED: %s from %s", message, self._port)
         return message
 
     @staticmethod
@@ -86,4 +90,8 @@ class SerialCommander:
 
     def get_status_request(self) -> str:
         self.__serial_manager._send_command(Command.GET_STATUS)
-        return self.__serial_manager._read_from_serial()
+        response = self.__serial_manager._read_from_serial()
+        if not response.startswith("STST"):
+            logging.error("Bad message received for get_status request")
+            raise BadSerialResponseException("Bad response for get_status request")
+        return response
