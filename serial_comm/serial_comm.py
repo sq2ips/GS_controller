@@ -10,8 +10,8 @@ logging.basicConfig(level=logging.DEBUG)
 class Command(str, Enum):
     BYPASS_ON = "STB1"
     BYPASS_OFF = "STB0"
-    FILTER_STEP_UP = "ST-"
-    FILTER_STEP_DOWN = "ST+"
+    FILTER_STEP_UP = "ST-"  # To *increase* the filter frequency actually *decrease* the stepper motor step count
+    FILTER_STEP_DOWN = "ST+"  # To *decrease* the filter frequency actually *increase* the stepper motor step count
     FILTER_STEP_RESET = "STr"
     MODE_TX_ON = "STT"
     MODE_TX_OFF = "STR"
