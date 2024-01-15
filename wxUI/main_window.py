@@ -38,9 +38,6 @@ class MainWindow(wx.Frame):
 
         # Layout views
         self.main_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        # Don't think we need the indicators for now
-        # self.indicatorsPanel = IndicatorsPanel(self)
-        # self.main_sizer.Add(self.indicatorsPanel, 0, wx.ALL, 5)
 
         self.controllsPanel = ControllsPanel(self)
         self.main_sizer.Add(self.controllsPanel, 1, wx.EXPAND | wx.ALL, 5)
@@ -141,25 +138,6 @@ class MainWindow(wx.Frame):
             wx.MessageBox(f"{bsre}", "Error", wx.OK | wx.ICON_ERROR)
 
 
-# Don't think we need the indicators for now
-# class IndicatorsPanel(wx.Panel):
-#     def __init__(self, parent) -> None:
-#         wx.Panel.__init__(
-#             self, parent, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, wx.TAB_TRAVERSAL, "IndicatorsPanel"
-#         )
-#         self.sizer = wx.StaticBoxSizer(wx.StaticBox(self, -1, "Indicators"), wx.VERTICAL)
-#         for x in range(10):
-#             ctr = wx.StaticText(self, label="Label: ")
-#             ctr1 = wx.StaticText(self, label=str(x))
-#             xsizer = wx.BoxSizer(wx.HORIZONTAL)
-#             xsizer.Add(ctr, 1, wx.EXPAND)
-#             xsizer.Add(ctr1, 1, wx.EXPAND)
-#             self.sizer.Add(xsizer, 1, wx.EXPAND)
-#         self.SetSizer(self.sizer)
-#         self.SetAutoLayout(1)
-#         self.sizer.Fit(self)
-
-
 class ControllsPanel(wx.Panel):
     def __init__(self, parent) -> None:
         wx.Panel.__init__(
@@ -208,7 +186,12 @@ class ControllsPanel(wx.Panel):
     def OnBypassToggled(self, event) -> None:
         value = event.GetEventObject().GetValue()
         pub.sendMessage("bypass", message=value)
-        logging.debug("BYPASS ON") if value is True else logging.debug("BYPASS OFF")
+        if value:
+            logging.debug("BYPASS ON")
+            event.GetEventObject().SetBackgroundColour(wx.BLUE)
+        else:
+            logging.debug("BYPASS OFF")
+            event.GetEventObject().SetBackgroundColour(wx.Colour(38, 38, 38))
 
     def OnOffsetButtonClicked(self, event) -> None:
         label = event.GetEventObject().GetLabel()
@@ -222,4 +205,9 @@ class ControllsPanel(wx.Panel):
     def OnTXModeToggled(self, event) -> None:
         value = event.GetEventObject().GetValue()
         pub.sendMessage("force_tx", message=value)
-        logging.debug("FORCE TX MODE ON") if value is True else logging.debug("FORCE TX MODE OFF")
+        if value:
+            logging.debug("FORCE TX MODE ON")
+            event.GetEventObject().SetBackgroundColour(wx.BLUE)
+        else:
+            logging.debug("FORCE TX MODE OFF")
+            event.GetEventObject().SetBackgroundColour(wx.Colour(38, 38, 38))
