@@ -37,10 +37,12 @@ class MainWindow(wx.Frame):
         self.statusBar = self.CreateStatusBar()
 
         # Layout views
-        self.main_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.main_sizer = wx.BoxSizer(wx.VERTICAL)
 
         self.controllsPanel = ControllsPanel(self)
         self.main_sizer.Add(self.controllsPanel, 1, wx.EXPAND | wx.ALL, 5)
+        self.frequencyPanel = FrequencyPanel(self)
+        self.main_sizer.Add(self.frequencyPanel, 1, wx.EXPAND | wx.ALL, 5)
 
         self.SetAutoLayout(1)
         self.main_sizer.Fit(self)
@@ -119,6 +121,8 @@ class MainWindow(wx.Frame):
         try:
             statusMessage = self.serialCommander.get_status()
             statusMessageList = statusMessage.split(",")
+            # Read current frequency
+            self.frequencyPanel.frequencyStaticText.SetLabel(f"{statusMessageList[1]} MHz")
             # Read bypass status
             if statusMessageList[3] == "0":
                 self.controllsPanel.bypassToggleButton.SetValue(False)
@@ -211,3 +215,19 @@ class ControllsPanel(wx.Panel):
         else:
             logging.debug("FORCE TX MODE OFF")
             event.GetEventObject().SetBackgroundColour(wx.Colour(38, 38, 38))
+
+
+class FrequencyPanel(wx.Panel):
+    def __init__(self, parent) -> None:
+        wx.Panel.__init__(
+            self, parent, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, wx.TAB_TRAVERSAL, "FrequencyPanel"
+        )
+        sizer = wx.StaticBoxSizer(wx.StaticBox(self, -1, "Frequency"), wx.VERTICAL)
+        frequencyFont = wx.Font(48, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD, False)
+        self.frequencyStaticText = wx.StaticText(self, wx.ID_ANY, "433.500 MHz", style=wx.ALIGN_CENTER_HORIZONTAL)
+        self.frequencyStaticText.SetFont(frequencyFont)
+        sizer.Add(self.frequencyStaticText, 0, wx.ALIGN_CENTER)
+
+        self.SetSizer(sizer)
+        self.SetAutoLayout(1)
+        sizer.Fit(self)
