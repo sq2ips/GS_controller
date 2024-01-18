@@ -1,0 +1,14 @@
+services:
+  gs-controller:
+    build:
+      context: .
+    # uncomment next line to name and tag image after building
+    # image: groundstation:testing
+    # if still no X or no serial port access uncomment next line
+    # privileged: true
+    volumes:
+      - /dev:/dev
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    environment:
+      DISPLAY: "${DISPLAY}"
+    network_mode: host
