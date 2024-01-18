@@ -7,4 +7,4 @@ WORKDIR /workspace
 
 COPY . .
 
-CMD [ "python3", "sp2wie_main.py" ]
+CMD [ "python3", "main.py" ]

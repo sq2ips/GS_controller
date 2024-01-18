@@ -4,7 +4,7 @@ import wx
 from pubsub import pub
 from serial import SerialException
 
-from serial_comm.serial_comm import BadSerialResponseException, SerialCommander, SerialManager
+from serial_comm import BadSerialResponseException, SerialCommander, SerialManager
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -25,7 +25,6 @@ class MainWindow(wx.Frame):
         self.Bind(wx.EVT_TIMER, self.OnTimerTick, self.updateStatusTimer)
 
         # Menu configuration
-        # TODO: add About menu
         settingsMenu = wx.Menu()
         portSettingsItem = settingsMenu.Append(wx.NewId(), "&Serial Port Settings", "Open Serial Port Settings")
         self.Bind(wx.EVT_MENU, self.OnPortSettings, portSettingsItem)
@@ -122,7 +121,9 @@ class MainWindow(wx.Frame):
             statusMessage = self.serialCommander.get_status()
             statusMessageList = statusMessage.split(",")
             # Read current frequency
-            self.frequencyPanel.frequencyStaticText.SetLabel(f"{statusMessageList[1]} MHz")
+            newFrequency: str = statusMessageList[1]
+            if newFrequency.isnumeric():
+                self.frequencyPanel.frequencyStaticText.SetLabel(f"{newFrequency} MHz")
             # Read bypass status
             if statusMessageList[3] == "0":
                 self.controllsPanel.bypassToggleButton.SetValue(False)
@@ -151,7 +152,7 @@ class ControllsPanel(wx.Panel):
 
         sizer = wx.StaticBoxSizer(wx.StaticBox(self, -1, "Filter"), wx.VERTICAL)
 
-        self.bypassToggleButton = wx.ToggleButton(self, label="BYPASS")
+        self.bypassToggleButton = GSToggleButton(self, label="BYPASS")
         self.Bind(wx.EVT_TOGGLEBUTTON, self.OnBypassToggled, self.bypassToggleButton)
         sizer.Add(self.bypassToggleButton, 1, wx.EXPAND | wx.ALL)
 
@@ -174,7 +175,7 @@ class ControllsPanel(wx.Panel):
         filterResetButton.Bind(wx.EVT_BUTTON, self.OnResetFilterClicked)
         sizer.Add(filterResetButton, 1, wx.ALL | wx.EXPAND)
 
-        self.txModeToggleButton = wx.ToggleButton(self, label="FORCE TX MODE")
+        self.txModeToggleButton = GSToggleButton(self, label="FORCE TX MODE")
         self.Bind(wx.EVT_TOGGLEBUTTON, self.OnTXModeToggled, self.txModeToggleButton)
 
         mainSizer.Add(sizer, 1, wx.EXPAND)
@@ -192,10 +193,8 @@ class ControllsPanel(wx.Panel):
         pub.sendMessage("bypass", message=value)
         if value:
             logging.debug("BYPASS ON")
-            event.GetEventObject().SetBackgroundColour(wx.BLUE)
         else:
             logging.debug("BYPASS OFF")
-            event.GetEventObject().SetBackgroundColour(wx.Colour(38, 38, 38))
 
     def OnOffsetButtonClicked(self, event) -> None:
         label = event.GetEventObject().GetLabel()
@@ -211,10 +210,8 @@ class ControllsPanel(wx.Panel):
         pub.sendMessage("force_tx", message=value)
         if value:
             logging.debug("FORCE TX MODE ON")
-            event.GetEventObject().SetBackgroundColour(wx.BLUE)
         else:
             logging.debug("FORCE TX MODE OFF")
-            event.GetEventObject().SetBackgroundColour(wx.Colour(38, 38, 38))
 
 
 class FrequencyPanel(wx.Panel):
@@ -231,3 +228,17 @@ class FrequencyPanel(wx.Panel):
         self.SetSizer(sizer)
         self.SetAutoLayout(1)
         sizer.Fit(self)
+
+
+class GSToggleButton(wx.ToggleButton):
+    def __init__(self, parent, label=""):
+        wx.ToggleButton.__init__(self, parent, wx.ID_ANY, label)
+        self.Bind(wx.EVT_TOGGLEBUTTON, self.OnButtonToggled, self)
+
+    def OnButtonToggled(self, event):
+        if event.GetEventObject().GetValue():
+            self.SetBackgroundColour(wx.BLUE)
+        else:
+            self.SetBackgroundColour(wx.Colour(38, 38, 38))
+        # let other handlers process this event
+        event.Skip()
