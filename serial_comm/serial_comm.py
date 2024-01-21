@@ -22,6 +22,10 @@ class BadSerialResponseException(Exception):
     pass
 
 
+class InternalGroundStationError(Exception):
+    pass
+
+
 class SerialManager:
     def __init__(self, port: str, baudrate: int = 9600) -> None:
         self._port = port
@@ -42,9 +46,15 @@ class SerialManager:
         self._connection.write(command_string.encode("UTF-8"))
         self._connection.flush()
 
-    def _read_from_serial(self) -> str:
+    def _readln_from_serial(self) -> str:
         message = self._connection.readline().decode("UTF-8").replace("\r\n", "")
         logging.debug("RECEIVED: %s from %s", message, self._port)
+        return message
+
+    def _readln_from_serial_if_in_waiting(self) -> str:
+        message = ""
+        if self._connection.in_waiting:
+            message = self._readln_from_serial()
         return message
 
     @staticmethod
@@ -90,8 +100,14 @@ class SerialCommander:
 
     def get_status(self) -> str:
         self.__serial_manager._send_command(Command.GET_STATUS)
-        response = self.__serial_manager._read_from_serial()
+        response = self.__serial_manager._readln_from_serial()
         if not response.startswith("STST"):
             logging.error("Bad message received for get_status request")
             raise BadSerialResponseException("Bad response for get_status request")
         return response
+
+    def check_for_error(self) -> None:
+        message = self.__serial_manager._readln_from_serial_if_in_waiting()
+        if message.startswith("ERROR"):
+            logging.error(message)
+            raise InternalGroundStationError(message)

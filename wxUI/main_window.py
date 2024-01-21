@@ -4,7 +4,7 @@ import wx
 from pubsub import pub
 from serial import SerialException
 
-from serial_comm import BadSerialResponseException, SerialCommander, SerialManager
+from serial_comm import BadSerialResponseException, InternalGroundStationError, SerialCommander, SerialManager
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -21,8 +21,8 @@ class MainWindow(wx.Frame):
 
         self.serialCommander: SerialCommander = None
 
-        self.updateStatusTimer = wx.Timer(self)
-        self.Bind(wx.EVT_TIMER, self.OnTimerTick, self.updateStatusTimer)
+        self.checkErrorTimer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self.OnTimerTick, self.checkErrorTimer)
 
         # Menu configuration
         settingsMenu = wx.Menu()
@@ -70,9 +70,9 @@ class MainWindow(wx.Frame):
             else:
                 logging.debug(f"Using serial port: {selectedPort}")
                 self.statusBar.SetStatusText(f"Using serial port: {selectedPort}")
-                # since at this point everything should be fine we can start the status update timer
-                if not self.updateStatusTimer.IsRunning():
-                    self.updateStatusTimer.Start(1000)
+                # since at this point everything should be fine we can start the check error timer
+                if not self.checkErrorTimer.IsRunning():
+                    self.checkErrorTimer.Start(1000)
 
     def OnBypassMessageReceived(self, message: bool) -> None:
         try:
@@ -118,29 +118,40 @@ class MainWindow(wx.Frame):
 
     def OnTimerTick(self, event):
         try:
-            statusMessage = self.serialCommander.get_status()
-            statusMessageList = statusMessage.split(",")
-            # Read current frequency
-            newFrequency: str = statusMessageList[1]
-            if newFrequency.isnumeric():
-                self.frequencyPanel.frequencyStaticText.SetLabel(f"{newFrequency} MHz")
-            # Read bypass status
-            if statusMessageList[3] == "0":
-                self.controllsPanel.bypassToggleButton.SetValue(False)
-            else:
-                self.controllsPanel.bypassToggleButton.SetValue(True)
-            # Read TX Mode status
-            if statusMessageList[5] == "0":
-                self.controllsPanel.txModeToggleButton.SetValue(False)
-            else:
-                self.controllsPanel.txModeToggleButton.SetValue(True)
+            self.serialCommander.check_for_error()
         except SerialException as se:
+            self.checkErrorTimer.Stop()
             logging.error("Could not find or configure the device: %s", se)
             wx.MessageBox("Could not find or configure the device", "Error", wx.OK | wx.ICON_ERROR)
-            logging.debug("Stopping the update status timer...")
-            self.updateStatusTimer.Stop()
-        except BadSerialResponseException as bsre:
-            wx.MessageBox(f"{bsre}", "Error", wx.OK | wx.ICON_ERROR)
+        except InternalGroundStationError as igse:
+            self.checkErrorTimer.Stop()
+            wx.MessageBox(f"{igse}", "Error", wx.OK | wx.ICON_ERROR)
+
+    # def OnTimerTick(self, event):
+    #     try:
+    #         statusMessage = self.serialCommander.get_status()
+    #         statusMessageList = statusMessage.split(",")
+    #         # Read current frequency
+    #         newFrequency: str = statusMessageList[1]
+    #         if newFrequency.isnumeric():
+    #             self.frequencyPanel.frequencyStaticText.SetLabel(f"{newFrequency} MHz")
+    #         # Read bypass status
+    #         if statusMessageList[3] == "0":
+    #             self.controllsPanel.bypassToggleButton.SetValue(False)
+    #         else:
+    #             self.controllsPanel.bypassToggleButton.SetValue(True)
+    #         # Read TX Mode status
+    #         if statusMessageList[5] == "0":
+    #             self.controllsPanel.txModeToggleButton.SetValue(False)
+    #         else:
+    #             self.controllsPanel.txModeToggleButton.SetValue(True)
+    #     except SerialException as se:
+    #         logging.error("Could not find or configure the device: %s", se)
+    #         wx.MessageBox("Could not find or configure the device", "Error", wx.OK | wx.ICON_ERROR)
+    #         logging.debug("Stopping the update status timer...")
+    #         self.updateStatusTimer.Stop()
+    #     except BadSerialResponseException as bsre:
+    #         wx.MessageBox(f"{bsre}", "Error", wx.OK | wx.ICON_ERROR)
 
 
 class ControllsPanel(wx.Panel):
