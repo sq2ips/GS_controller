@@ -4,7 +4,7 @@ import wx
 from pubsub import pub
 from serial import SerialException
 
-from serial_comm.serial_comm import BadSerialResponseException, SerialCommander, SerialManager
+from serial_comm import BadSerialResponseException, SerialCommander, SerialManager
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -25,7 +25,6 @@ class MainWindow(wx.Frame):
         self.Bind(wx.EVT_TIMER, self.OnTimerTick, self.updateStatusTimer)
 
         # Menu configuration
-        # TODO: add About menu
         settingsMenu = wx.Menu()
         portSettingsItem = settingsMenu.Append(wx.NewId(), "&Serial Port Settings", "Open Serial Port Settings")
         self.Bind(wx.EVT_MENU, self.OnPortSettings, portSettingsItem)
@@ -37,13 +36,12 @@ class MainWindow(wx.Frame):
         self.statusBar = self.CreateStatusBar()
 
         # Layout views
-        self.main_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        # Don't think we need the indicators for now
-        # self.indicatorsPanel = IndicatorsPanel(self)
-        # self.main_sizer.Add(self.indicatorsPanel, 0, wx.ALL, 5)
+        self.main_sizer = wx.BoxSizer(wx.VERTICAL)
 
         self.controllsPanel = ControllsPanel(self)
         self.main_sizer.Add(self.controllsPanel, 1, wx.EXPAND | wx.ALL, 5)
+        self.frequencyPanel = FrequencyPanel(self)
+        self.main_sizer.Add(self.frequencyPanel, 1, wx.EXPAND | wx.ALL, 5)
 
         self.SetAutoLayout(1)
         self.main_sizer.Fit(self)
@@ -122,6 +120,10 @@ class MainWindow(wx.Frame):
         try:
             statusMessage = self.serialCommander.get_status()
             statusMessageList = statusMessage.split(",")
+            # Read current frequency
+            newFrequency: str = statusMessageList[1]
+            if newFrequency.isnumeric():
+                self.frequencyPanel.frequencyStaticText.SetLabel(f"{newFrequency} MHz")
             # Read bypass status
             if statusMessageList[3] == "0":
                 self.controllsPanel.bypassToggleButton.SetValue(False)
@@ -141,25 +143,6 @@ class MainWindow(wx.Frame):
             wx.MessageBox(f"{bsre}", "Error", wx.OK | wx.ICON_ERROR)
 
 
-# Don't think we need the indicators for now
-# class IndicatorsPanel(wx.Panel):
-#     def __init__(self, parent) -> None:
-#         wx.Panel.__init__(
-#             self, parent, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, wx.TAB_TRAVERSAL, "IndicatorsPanel"
-#         )
-#         self.sizer = wx.StaticBoxSizer(wx.StaticBox(self, -1, "Indicators"), wx.VERTICAL)
-#         for x in range(10):
-#             ctr = wx.StaticText(self, label="Label: ")
-#             ctr1 = wx.StaticText(self, label=str(x))
-#             xsizer = wx.BoxSizer(wx.HORIZONTAL)
-#             xsizer.Add(ctr, 1, wx.EXPAND)
-#             xsizer.Add(ctr1, 1, wx.EXPAND)
-#             self.sizer.Add(xsizer, 1, wx.EXPAND)
-#         self.SetSizer(self.sizer)
-#         self.SetAutoLayout(1)
-#         self.sizer.Fit(self)
-
-
 class ControllsPanel(wx.Panel):
     def __init__(self, parent) -> None:
         wx.Panel.__init__(
@@ -169,7 +152,7 @@ class ControllsPanel(wx.Panel):
 
         sizer = wx.StaticBoxSizer(wx.StaticBox(self, -1, "Filter"), wx.VERTICAL)
 
-        self.bypassToggleButton = wx.ToggleButton(self, label="BYPASS")
+        self.bypassToggleButton = GSToggleButton(self, label="BYPASS")
         self.Bind(wx.EVT_TOGGLEBUTTON, self.OnBypassToggled, self.bypassToggleButton)
         sizer.Add(self.bypassToggleButton, 1, wx.EXPAND | wx.ALL)
 
@@ -192,7 +175,7 @@ class ControllsPanel(wx.Panel):
         filterResetButton.Bind(wx.EVT_BUTTON, self.OnResetFilterClicked)
         sizer.Add(filterResetButton, 1, wx.ALL | wx.EXPAND)
 
-        self.txModeToggleButton = wx.ToggleButton(self, label="FORCE TX MODE")
+        self.txModeToggleButton = GSToggleButton(self, label="FORCE TX MODE")
         self.Bind(wx.EVT_TOGGLEBUTTON, self.OnTXModeToggled, self.txModeToggleButton)
 
         mainSizer.Add(sizer, 1, wx.EXPAND)
@@ -208,7 +191,10 @@ class ControllsPanel(wx.Panel):
     def OnBypassToggled(self, event) -> None:
         value = event.GetEventObject().GetValue()
         pub.sendMessage("bypass", message=value)
-        logging.debug("BYPASS ON") if value is True else logging.debug("BYPASS OFF")
+        if value:
+            logging.debug("BYPASS ON")
+        else:
+            logging.debug("BYPASS OFF")
 
     def OnOffsetButtonClicked(self, event) -> None:
         label = event.GetEventObject().GetLabel()
@@ -222,4 +208,37 @@ class ControllsPanel(wx.Panel):
     def OnTXModeToggled(self, event) -> None:
         value = event.GetEventObject().GetValue()
         pub.sendMessage("force_tx", message=value)
-        logging.debug("FORCE TX MODE ON") if value is True else logging.debug("FORCE TX MODE OFF")
+        if value:
+            logging.debug("FORCE TX MODE ON")
+        else:
+            logging.debug("FORCE TX MODE OFF")
+
+
+class FrequencyPanel(wx.Panel):
+    def __init__(self, parent) -> None:
+        wx.Panel.__init__(
+            self, parent, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, wx.TAB_TRAVERSAL, "FrequencyPanel"
+        )
+        sizer = wx.StaticBoxSizer(wx.StaticBox(self, -1, "Frequency"), wx.VERTICAL)
+        frequencyFont = wx.Font(48, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD, False)
+        self.frequencyStaticText = wx.StaticText(self, wx.ID_ANY, "433.500 MHz", style=wx.ALIGN_CENTER_HORIZONTAL)
+        self.frequencyStaticText.SetFont(frequencyFont)
+        sizer.Add(self.frequencyStaticText, 0, wx.ALIGN_CENTER)
+
+        self.SetSizer(sizer)
+        self.SetAutoLayout(1)
+        sizer.Fit(self)
+
+
+class GSToggleButton(wx.ToggleButton):
+    def __init__(self, parent, label=""):
+        wx.ToggleButton.__init__(self, parent, wx.ID_ANY, label)
+        self.Bind(wx.EVT_TOGGLEBUTTON, self.OnButtonToggled, self)
+
+    def OnButtonToggled(self, event):
+        if event.GetEventObject().GetValue():
+            self.SetBackgroundColour(wx.BLUE)
+        else:
+            self.SetBackgroundColour(wx.Colour(38, 38, 38))
+        # let other handlers process this event
+        event.Skip()
