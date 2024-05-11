@@ -53,8 +53,19 @@ class SerialManager:
 
         Returns:
             list[str]: absolute paths of com (serial) ports available on host
+            first element is found device serial port.
         """
-        return [port.device for port in list_ports.comports()]
+        ports = [port.device for port in list_ports.comports()]
+        for p in ports:
+             with serial.Serial(p, 9600, timeout=2) as ser:
+                 ser.write(b'ST?\n')
+                 res = ser.read(4)
+                 if res == b'STST':
+                     logging.debug(f"Correct serial found: {p}")
+                     po = ports[0]
+                     ports[0] = ports[ports.index(p)]
+                     ports[ports.index(p)]
+        return ports
 
 
 class SerialCommander:
